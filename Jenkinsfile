@@ -5,7 +5,7 @@ pipeline {
     // Avoid double checkout (Declarative would otherwise checkout automatically)
     skipDefaultCheckout(true)
 
-    // Prevent two deployments at the same time
+    // Prevent parallel deploys overwriting each other
     disableConcurrentBuilds()
   }
 
@@ -33,7 +33,7 @@ pipeline {
         sh '''
           set -e
 
-          # If your VPS is ARM64, change linux-x64 -> linux-arm64 in both lines below:
+          # If your VPS is ARM64, change linux-x64 -> linux-arm64 in BOTH lines below
           NODE_TGZ="node-${NODE_VERSION}-linux-x64.tar.gz"
           NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_TGZ}"
 
@@ -87,31 +87,36 @@ pipeline {
           export PATH="${NODE_DIR}/bin:${PATH}"
 
           rm -rf "${BUILD_DIR}"
-          mkdir -p "${BUILD_DIR}/assets"
+          mkdir -p "${BUILD_DIR}"
 
-          # ---- BUILD OPTIONS ----
-          # Option A (preferred): If you have an npm build script, use it.
-          # Uncomment next line if your repo supports it:
-          # npm run build
-
-          # Option B: Tailwind CLI build (common for static sites)
-          # Update the input/output paths to match your repo.
-          if [ -f ./src/input.css ]; then
-            npx tailwindcss -i ./src/input.css -o ./${BUILD_DIR}/assets/style.css --minify
+          # Build Tailwind from input.css (repo root)
+          if [ -f ./input.css ]; then
+            npx tailwindcss -i ./input.css -o ./${BUILD_DIR}/style.css --minify
           else
-            echo "WARNING: ./src/input.css not found. If you use a different input file, update Jenkinsfile."
+            echo "ERROR: input.css not found in repo root."
+            exit 1
           fi
 
-          # Copy HTML into dist (adjust if your HTML is elsewhere)
-          cp -v ./*.html "${BUILD_DIR}/" 2>/dev/null || true
+          # Copy HTML (rename to index.html for nginx default)
+          if [ -f ./outperform-nyt.html ]; then
+            cp -v ./outperform-nyt.html "${BUILD_DIR}/index.html"
+          else
+            echo "ERROR: outperform-nyt.html not found in repo root."
+            exit 1
+          fi
 
-          # Copy common static folders if present
+          # Copy input.css as requested
+          cp -v ./input.css "${BUILD_DIR}/input.css"
+
+          # Copy static files/folders if they exist
+          [ -f favicon.ico ] && cp -v favicon.ico "${BUILD_DIR}/" || true
+          [ -f sun-logo.svg ] && cp -v sun-logo.svg "${BUILD_DIR}/" || true
           [ -d assets ] && cp -rv assets "${BUILD_DIR}/" || true
           [ -d images ] && cp -rv images "${BUILD_DIR}/" || true
           [ -d public ] && cp -rv public/* "${BUILD_DIR}/" || true
 
           echo "Build output:"
-          find "${BUILD_DIR}" -maxdepth 3 -type f | sed 's|^| - |'
+          ls -la "${BUILD_DIR}"
         '''
       }
     }
@@ -128,7 +133,7 @@ pipeline {
 
           mkdir -p "${SITE_DIR}"
 
-          # Clean old deployment (no rsync requested)
+          # Clean old deployment (no rsync as requested)
           rm -rf "${SITE_DIR:?}/"*
 
           # Copy new build
@@ -146,7 +151,7 @@ pipeline {
   post {
     always {
       sh '''
-        echo "Cleanup: removing temporary Node + build artifacts..."
+        echo "Cleanup: removing temporary Node + artifacts..."
         rm -rf "${NODE_DIR}" node_modules "${BUILD_DIR}" || true
       '''
       cleanWs()
