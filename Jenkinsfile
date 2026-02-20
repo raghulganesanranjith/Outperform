@@ -91,7 +91,7 @@ pipeline {
 
           # Build Tailwind from styles.css (repo root)
           if [ -f ./styles.css ]; then
-            npx tailwindcss -i ./styles.css -o ./${BUILD_DIR}/dist/styles.css --minify
+            npx tailwindcss -i ./styles.css -o ./${BUILD_DIR}/output.css --minify
           else
             echo "ERROR: styles.css not found in repo root."
             exit 1
