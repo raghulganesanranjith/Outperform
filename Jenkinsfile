@@ -1,5 +1,10 @@
 pipeline {
-  agent any
+  agent {
+    docker {
+      image 'node:20-alpine'
+      args '-u root:root'
+    }
+  }
 
   environment {
     BUILD_DIR = 'dist'
@@ -26,10 +31,10 @@ pipeline {
           set -e
           mkdir -p ${BUILD_DIR}
 
-          # Build Tailwind CSS using the real HTML file
+          # Build Tailwind using the real HTML file
           npx tailwindcss -i ./styles.css -o ./${BUILD_DIR}/output.css --minify --content ./outperform-nyt.html
 
-          # Copy HTML to dist as index.html
+          # Publish HTML as dist/index.html
           cp ./outperform-nyt.html ./${BUILD_DIR}/index.html
         """
       }
