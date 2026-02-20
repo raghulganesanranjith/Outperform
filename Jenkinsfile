@@ -89,11 +89,11 @@ pipeline {
           rm -rf "${BUILD_DIR}"
           mkdir -p "${BUILD_DIR}"
 
-          # Build Tailwind from input.css (repo root)
-          if [ -f ./input.css ]; then
-            npx tailwindcss -i ./input.css -o ./${BUILD_DIR}/style.css --minify
+          # Build Tailwind from styles.css (repo root)
+          if [ -f ./styles.css ]; then
+            npx tailwindcss -i ./styles.css -o ./${BUILD_DIR}/dist/styles.css --minify
           else
-            echo "ERROR: input.css not found in repo root."
+            echo "ERROR: styles.css not found in repo root."
             exit 1
           fi
 
@@ -105,8 +105,8 @@ pipeline {
             exit 1
           fi
 
-          # Copy input.css as requested
-          cp -v ./input.css "${BUILD_DIR}/input.css"
+          # Copy styles.css as requested
+          cp -v ./styles.css "${BUILD_DIR}/styles.css"
 
           # Copy static files/folders if they exist
           [ -f favicon.ico ] && cp -v favicon.ico "${BUILD_DIR}/" || true
