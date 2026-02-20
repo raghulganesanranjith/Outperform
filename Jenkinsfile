@@ -7,12 +7,25 @@ pipeline {
   }
 
   stages {
-    stage('Verify Tools') {
+
+    stage('Install Node (temporary)') {
       steps {
         sh '''
           set -e
-          echo "Node:"; node -v
-          echo "NPM:"; npm -v
+
+          echo "Installing Node.js inside container..."
+
+          # Update apt and install node
+          apt-get update
+          apt-get install -y curl ca-certificates gnupg
+
+          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          apt-get install -y nodejs
+
+          echo "Node version:"
+          node -v
+          echo "NPM version:"
+          npm -v
         '''
       }
     }
@@ -27,7 +40,7 @@ pipeline {
       steps {
         sh '''
           set -e
-          npm ci
+          npm ci || npm install
         '''
       }
     }
@@ -36,17 +49,17 @@ pipeline {
       steps {
         sh '''
           set -e
+
           rm -rf dist
           mkdir -p dist/assets
 
-          # Example Tailwind build (change these paths to yours)
-          # Make sure src/input.css contains @tailwind directives
+          # Adjust paths if your input css is different
           npx tailwindcss -i ./src/input.css -o ./dist/assets/style.css --minify
 
-          # Copy HTML (change if your html is in another folder)
+          # Copy HTML files
           cp -v ./*.html dist/ || true
 
-          # Copy static folders if you have them
+          # Copy static folders if they exist
           [ -d assets ] && cp -rv assets dist/ || true
           [ -d images ] && cp -rv images dist/ || true
           [ -d public ] && cp -rv public/* dist/ || true
@@ -61,15 +74,15 @@ pipeline {
       steps {
         sh '''
           set -e
+
           mkdir -p "$SITE_DIR"
 
-          # Clean old deployment (no rsync, so we delete then copy)
+          # Clean old files
           rm -rf "$SITE_DIR"/*
 
           # Copy new build
           cp -rv "$BUILD_DIR"/* "$SITE_DIR"/
 
-          # Permissions
           chmod -R 755 "$SITE_DIR"
 
           echo "Deployed files:"
@@ -81,6 +94,17 @@ pipeline {
 
   post {
     always {
+      sh '''
+        echo "Cleaning up Node.js and build artifacts..."
+
+        # Remove node and npm (cleanup)
+        apt-get remove -y nodejs || true
+        apt-get autoremove -y || true
+        apt-get clean || true
+
+        # Cleanup workspace
+        rm -rf node_modules dist || true
+      '''
       cleanWs()
     }
   }
