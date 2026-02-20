@@ -1,0 +1,361 @@
+/* ============================================================
+   Outperform IT Solutions — Production Stylesheet
+   Build:  npx tailwindcss -i styles.css -o dist/styles.css --minify
+   ============================================================ */
+
+/* ── Tailwind layers ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Google Fonts import ── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;0,900;1,400;1,700;1,900&family=Source+Sans+3:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500&display=swap');
+
+/* ============================================================
+   DESIGN TOKENS  (light / dark)
+   ============================================================ */
+:root {
+  --ink:   #111111;
+  --paper: #FAFAF8;
+  --mid:   #888888;
+  --rule:  #D8D5CE;
+  --soft:  #F2F0EB;
+}
+
+html.dark {
+  --ink:   #F0EDE6;
+  --paper: #121212;
+  --mid:   #777777;
+  --rule:  #2A2A2A;
+  --soft:  #1C1C1C;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-weight: 300;
+  line-height: 1.7;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ============================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================ */
+
+/* Masthead / logo wordmark */
+.masthead-logo {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* All-caps editorial kicker (e.g. "Our Services") */
+.kicker {
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mid);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kicker::before,
+.kicker::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+/* Small-caps attribution line */
+.byline {
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+/* Serif headings */
+h1, h2, h3, h4 {
+  font-family: 'Playfair Display', Georgia, serif;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* Drop-cap for hero body paragraph */
+.drop-cap::first-letter {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 900;
+  font-size: 5.2em;
+  line-height: 0.8;
+  float: left;
+  margin-right: 6px;
+  margin-top: 4px;
+}
+
+/* Pull-quote with triple-rule borders */
+.pull-quote {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  line-height: 1.45;
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 1.25rem 0;
+}
+
+/* ============================================================
+   MASTHEAD TRIPLE RULE
+   ============================================================ */
+.triple-rule {
+  border-top: 4px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 2px 0;
+  position: relative;
+}
+.triple-rule::after {
+  content: '';
+  display: block;
+  border-top: 1px solid var(--ink);
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+.nav-link {
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mid);
+  transition: color 0.2s;
+  position: relative;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.2s;
+}
+.nav-link:hover { color: var(--ink); }
+.nav-link:hover::after { transform: scaleX(1); }
+
+.dropdown-menu {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-primary:hover { background: var(--paper); color: var(--ink); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.btn-ghost:hover { border-color: var(--ink); }
+
+/* ============================================================
+   DARK MODE TOGGLE
+   ============================================================ */
+.mode-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s;
+}
+.mode-btn:hover { border-color: var(--ink); background: var(--soft); }
+
+/* ============================================================
+   LAYOUT HELPERS
+   ============================================================ */
+.col-rule { border-right: 1px solid var(--rule); }
+
+/* ============================================================
+   MARQUEE
+   ============================================================ */
+.marquee-outer {
+  overflow: hidden;
+  position: relative;
+}
+.marquee-outer::before,
+.marquee-outer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+.marquee-outer::before {
+  left: 0;
+  background: linear-gradient(to right, var(--soft), transparent);
+}
+.marquee-outer::after {
+  right: 0;
+  background: linear-gradient(to left, var(--soft), transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+.marquee-track:hover { animation-play-state: paused; }
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ============================================================
+   SCROLL REVEAL ANIMATION
+   ============================================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  /* Fallback: auto-show after 1.2s if JS doesn't fire */
+  animation: rfb 0s 1.2s forwards;
+}
+@keyframes rfb {
+  to { opacity: 1; transform: translateY(0); }
+}
+.reveal.visible {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+  animation: none;
+}
+.d1 { transition-delay: 0.1s; }
+.d2 { transition-delay: 0.2s; }
+.d3 { transition-delay: 0.3s; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+
+/* Article / service card */
+.service-card { border-top: 2px solid var(--ink); }
+
+/* Partner card */
+.partner-card {
+  border: 1px solid var(--rule);
+  transition: border-color 0.2s;
+}
+.partner-card:hover { border-color: var(--ink); }
+.partner-card:hover h3 {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Pricing cards */
+.plan-card {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  transition: border-color 0.2s;
+}
+.plan-card:hover { border-color: var(--ink); }
+.plan-card.featured {
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Annual notice strip */
+.annual-strip    { border: 1px solid var(--rule); }
+.annual-strip-item { border-right: 1px solid var(--rule); }
+
+/* ============================================================
+   FORM INPUTS
+   ============================================================ */
+input,
+textarea,
+select {
+  font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif;
+  font-weight: 300;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus,
+textarea:focus,
+select:focus { border-color: var(--ink); }
+input::placeholder,
+textarea::placeholder { color: var(--mid); }
+select option { background: var(--paper); color: var(--ink); }
+
+hr { border-top: 1px solid var(--rule); border-bottom: none; }
+
+/* ============================================================
+   SUN LOGO — inverts in dark mode
+   ============================================================ */
+.sun-logo { filter: none; transition: filter 0.3s; }
+html.dark .sun-logo { filter: invert(1); }
+
+/* ============================================================
+   SCROLL OFFSET — compensates for fixed header
+   ============================================================ */
+section[id] { scroll-margin-top: 148px; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .col-rule {
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+  }
+  section[id] { scroll-margin-top: 120px; }
+}
