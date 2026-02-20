@@ -1,25 +1,40 @@
 pipeline {
   agent any
 
+  options {
+    // Avoid double checkout (Declarative would otherwise checkout automatically)
+    skipDefaultCheckout(true)
+
+    // Prevent two deployments at the same time
+    disableConcurrentBuilds()
+  }
+
   environment {
     SITE_DIR = "/var/www/outperformit"
     BUILD_DIR = "dist"
-    NODE_DIR = "${WORKSPACE}/.node"
+    NODE_DIR  = "${WORKSPACE}/.node"
+    NODE_VERSION = "v20.11.1"
   }
 
   stages {
+
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+        sh '''
+          echo "Repo files:"
+          ls -la
+        '''
+      }
     }
 
-    stage('Install Node (no root, temporary)') {
+    stage('Install Node (temporary, no root)') {
       steps {
         sh '''
           set -e
 
-          # Pick Node version (linux x64). If your VPS is ARM, tell me.
-          NODE_VERSION="v20.11.1"
-          NODE_TGZ="node-${NODE_VERSION}-linux-x64.tar.xz"
+          # If your VPS is ARM64, change linux-x64 -> linux-arm64 in both lines below:
+          NODE_TGZ="node-${NODE_VERSION}-linux-x64.tar.gz"
           NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_TGZ}"
 
           mkdir -p "${NODE_DIR}"
@@ -27,16 +42,21 @@ pipeline {
           if [ ! -x "${NODE_DIR}/bin/node" ]; then
             echo "Downloading Node ${NODE_VERSION}..."
             curl -fsSL "${NODE_URL}" -o "${WORKSPACE}/${NODE_TGZ}"
-            tar -xJf "${WORKSPACE}/${NODE_TGZ}" -C "${WORKSPACE}"
-            # Move extracted folder content into NODE_DIR
+
+            echo "Extracting Node..."
+            tar -xzf "${WORKSPACE}/${NODE_TGZ}" -C "${WORKSPACE}"
+
             rm -rf "${NODE_DIR}"
             mv "${WORKSPACE}/node-${NODE_VERSION}-linux-x64" "${NODE_DIR}"
+
             rm -f "${WORKSPACE}/${NODE_TGZ}"
+          else
+            echo "Node already present in workspace cache."
           fi
 
           export PATH="${NODE_DIR}/bin:${PATH}"
           echo "Node: $(node -v)"
-          echo "NPM:  $(npm -v)"
+          echo "NPM : $(npm -v)"
         '''
       }
     }
@@ -47,57 +67,77 @@ pipeline {
           set -e
           export PATH="${NODE_DIR}/bin:${PATH}"
 
-          # Use npm without needing system install
-          if [ -f package-lock.json ]; then
-            npm ci
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
           else
-            npm install
+            echo "No package.json found - skipping npm install."
           fi
         '''
       }
     }
 
-    stage('Build Tailwind') {
+    stage('Build') {
       steps {
         sh '''
           set -e
           export PATH="${NODE_DIR}/bin:${PATH}"
 
-          rm -rf dist
-          mkdir -p dist/assets
+          rm -rf "${BUILD_DIR}"
+          mkdir -p "${BUILD_DIR}/assets"
 
-          # Adjust paths if needed:
-          # If your input css isn't ./src/input.css, change it
-          npx tailwindcss -i ./src/input.css -o ./dist/assets/style.css --minify
+          # ---- BUILD OPTIONS ----
+          # Option A (preferred): If you have an npm build script, use it.
+          # Uncomment next line if your repo supports it:
+          # npm run build
 
-          # Copy HTML + assets (adjust to your repo structure)
-          cp -v ./*.html dist/ || true
-          [ -d assets ] && cp -rv assets dist/ || true
-          [ -d images ] && cp -rv images dist/ || true
-          [ -d public ] && cp -rv public/* dist/ || true
+          # Option B: Tailwind CLI build (common for static sites)
+          # Update the input/output paths to match your repo.
+          if [ -f ./src/input.css ]; then
+            npx tailwindcss -i ./src/input.css -o ./${BUILD_DIR}/assets/style.css --minify
+          else
+            echo "WARNING: ./src/input.css not found. If you use a different input file, update Jenkinsfile."
+          fi
+
+          # Copy HTML into dist (adjust if your HTML is elsewhere)
+          cp -v ./*.html "${BUILD_DIR}/" 2>/dev/null || true
+
+          # Copy common static folders if present
+          [ -d assets ] && cp -rv assets "${BUILD_DIR}/" || true
+          [ -d images ] && cp -rv images "${BUILD_DIR}/" || true
+          [ -d public ] && cp -rv public/* "${BUILD_DIR}/" || true
 
           echo "Build output:"
-          ls -la dist
+          find "${BUILD_DIR}" -maxdepth 3 -type f | sed 's|^| - |'
         '''
       }
     }
 
-    stage('Deploy (copy to /var/www)') {
+    stage('Deploy to /var/www (copy)') {
       steps {
         sh '''
           set -e
-          mkdir -p "$SITE_DIR"
 
-          # Clean old deployment
-          rm -rf "$SITE_DIR"/*
+          if [ ! -d "${BUILD_DIR}" ]; then
+            echo "ERROR: Build directory ${BUILD_DIR} not found."
+            exit 1
+          fi
+
+          mkdir -p "${SITE_DIR}"
+
+          # Clean old deployment (no rsync requested)
+          rm -rf "${SITE_DIR:?}/"*
 
           # Copy new build
-          cp -rv "$BUILD_DIR"/* "$SITE_DIR"/
+          cp -rv "${BUILD_DIR}/"* "${SITE_DIR}/"
 
-          chmod -R 755 "$SITE_DIR"
+          chmod -R 755 "${SITE_DIR}"
 
-          echo "Deployed:"
-          ls -la "$SITE_DIR"
+          echo "Deployed files:"
+          ls -la "${SITE_DIR}"
         '''
       }
     }
@@ -106,8 +146,8 @@ pipeline {
   post {
     always {
       sh '''
-        echo "Cleanup workspace Node + artifacts..."
-        rm -rf "${NODE_DIR}" node_modules dist || true
+        echo "Cleanup: removing temporary Node + build artifacts..."
+        rm -rf "${NODE_DIR}" node_modules "${BUILD_DIR}" || true
       '''
       cleanWs()
     }
