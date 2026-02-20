@@ -11,7 +11,6 @@ pipeline {
 
   environment {
     SITE_DIR = "/var/www/outperformit"
-    BUILD_DIR = "dist"
     NODE_DIR  = "${WORKSPACE}/.node"
     NODE_VERSION = "v20.11.1"
   }
@@ -90,65 +89,38 @@ pipeline {
       }
     }
 
-    stage('Build') {
+    stage('Build & Deploy to /var/www/outperformit') {
       steps {
         sh '''
           set -e
           export PATH="${NODE_DIR}/bin:${PATH}"
 
-          rm -rf "${BUILD_DIR}"
-          mkdir -p "${BUILD_DIR}"
-
-          # Build Tailwind CSS from styles.css, scanning the real HTML file for classes
-          if [ -f ./styles.css ]; then
-            if [ -f ./outperform-nyt.html ]; then
-              npx tailwindcss -i ./styles.css -o ./${BUILD_DIR}/styles.css --minify --content ./outperform-nyt.html
-            else
-              echo "ERROR: outperform-nyt.html not found in repo root (needed for Tailwind content scan)."
-              exit 1
-            fi
-          else
-            echo "ERROR: styles.css not found in repo root."
-            exit 1
-          fi
-
-          # Copy HTML (rename to index.html for nginx default)
-          cp -v ./outperform-nyt.html "${BUILD_DIR}/index.html"
-
-          # Copy static files/folders if they exist
-          [ -f favicon.ico ] && cp -v favicon.ico "${BUILD_DIR}/" || true
-          [ -f sun-logo.svg ] && cp -v sun-logo.svg "${BUILD_DIR}/" || true
-          [ -d assets ] && cp -rv assets "${BUILD_DIR}/" || true
-          [ -d images ] && cp -rv images "${BUILD_DIR}/" || true
-          [ -d public ] && cp -rv public/* "${BUILD_DIR}/" || true
-
-          echo "Build output:"
-          ls -la "${BUILD_DIR}"
-        '''
-      }
-    }
-
-    stage('Deploy to /var/www (copy)') {
-      steps {
-        sh '''
-          set -e
-
-          if [ ! -d "${BUILD_DIR}" ]; then
-            echo "ERROR: Build directory ${BUILD_DIR} not found."
-            exit 1
-          fi
-
           mkdir -p "${SITE_DIR}"
 
-          # Clean old deployment (no rsync as requested)
+          # Clean old site
           rm -rf "${SITE_DIR:?}/"*
 
-          # Copy new build
-          cp -rv "${BUILD_DIR}/"* "${SITE_DIR}/"
+          # Build Tailwind CSS directly into site directory
+          if [ -f ./styles.css ] && [ -f ./outperform-nyt.html ]; then
+            npx tailwindcss -i ./styles.css -o "${SITE_DIR}/styles.css" --minify --content ./outperform-nyt.html
+          else
+            echo "ERROR: styles.css or outperform-nyt.html not found in repo root."
+            exit 1
+          fi
+
+          # Copy HTML as index.html
+          cp -v ./outperform-nyt.html "${SITE_DIR}/index.html"
+
+          # Copy static files if they exist
+          [ -f favicon.ico ] && cp -v favicon.ico "${SITE_DIR}/" || true
+          [ -f sun-logo.svg ] && cp -v sun-logo.svg "${SITE_DIR}/" || true
+          [ -d assets ] && cp -rv assets "${SITE_DIR}/" || true
+          [ -d images ] && cp -rv images "${SITE_DIR}/" || true
+          [ -d public ] && cp -rv public/* "${SITE_DIR}/" || true
 
           chmod -R 755 "${SITE_DIR}"
 
-          echo "Deployed files:"
+          echo "Deployed site files:"
           ls -la "${SITE_DIR}"
         '''
       }
@@ -158,8 +130,8 @@ pipeline {
   post {
     always {
       sh '''
-        echo "Cleanup: removing temporary Node + artifacts..."
-        rm -rf "${NODE_DIR}" node_modules "${BUILD_DIR}" || true
+        echo "Cleanup: removing temporary Node + node_modules..."
+        rm -rf "${NODE_DIR}" node_modules || true
       '''
       cleanWs()
     }
