@@ -2,38 +2,36 @@ pipeline {
   agent any
 
   options {
-    // Avoid double checkout (Declarative would otherwise checkout automatically)
     skipDefaultCheckout(true)
-
-    // Prevent parallel deploys overwriting each other
     disableConcurrentBuilds()
   }
 
   environment {
-    SITE_DIR = "/var/www/outperformit"
-    BUILD_DIR = "dist"
-    NODE_DIR  = "${WORKSPACE}/.node"
+    // ── Change this to your actual server web root ──
+    SITE_DIR     = "/var/www/outperformit"
+    NODE_DIR     = "${WORKSPACE}/.node"
     NODE_VERSION = "v20.11.1"
   }
 
   stages {
 
+    // ─────────────────────────────────────────
     stage('Checkout') {
+    // ─────────────────────────────────────────
       steps {
         checkout scm
-        sh '''
-          echo "Repo files:"
-          ls -la
-        '''
+        sh 'echo "=== Repo contents ===" && ls -la'
       }
     }
 
-    stage('Install Node (temporary, no root)') {
+    // ─────────────────────────────────────────
+    stage('Install Node') {
+    // ─────────────────────────────────────────
       steps {
         sh '''
           set -e
 
-          # If your VPS is ARM64, change linux-x64 -> linux-arm64 in BOTH lines below
+          # ── Change linux-x64 → linux-arm64 if your VPS is ARM64 ──
           NODE_TGZ="node-${NODE_VERSION}-linux-x64.tar.gz"
           NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/${NODE_TGZ}"
 
@@ -43,117 +41,132 @@ pipeline {
             echo "Downloading Node ${NODE_VERSION}..."
             curl -fsSL "${NODE_URL}" -o "${WORKSPACE}/${NODE_TGZ}"
 
-            echo "Extracting Node..."
+            echo "Extracting..."
             tar -xzf "${WORKSPACE}/${NODE_TGZ}" -C "${WORKSPACE}"
 
             rm -rf "${NODE_DIR}"
             mv "${WORKSPACE}/node-${NODE_VERSION}-linux-x64" "${NODE_DIR}"
-
             rm -f "${WORKSPACE}/${NODE_TGZ}"
           else
-            echo "Node already present in workspace cache."
+            echo "Node already cached."
           fi
 
           export PATH="${NODE_DIR}/bin:${PATH}"
-          echo "Node: $(node -v)"
-          echo "NPM : $(npm -v)"
+          node -v && npm -v
         '''
       }
     }
 
+    // ─────────────────────────────────────────
     stage('Install Dependencies') {
+    // ─────────────────────────────────────────
       steps {
         sh '''
           set -e
           export PATH="${NODE_DIR}/bin:${PATH}"
 
-          if [ -f package.json ]; then
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
+          if [ -f package-lock.json ]; then
+            npm ci
           else
-            echo "No package.json found - skipping npm install."
+            npm install
           fi
         '''
       }
     }
 
-    stage('Build') {
+    // ─────────────────────────────────────────
+    stage('Build CSS') {
+    // ─────────────────────────────────────────
       steps {
         sh '''
           set -e
           export PATH="${NODE_DIR}/bin:${PATH}"
 
-          rm -rf "${BUILD_DIR}"
-          mkdir -p "${BUILD_DIR}"
+          # Compile Tailwind: input = styles.css (repo root)
+          #                   output = styles.css (overwrite in-place, minified)
+          # This is intentional — index.html links to styles.css at root level.
+          npx tailwindcss \
+            -i ./styles.css \
+            -o ./styles.css \
+            --minify \
+            --config ./tailwind.config.js
 
-          # Build Tailwind from styles.css (repo root)
-          if [ -f ./styles.css ]; then
-            npx tailwindcss -i ./styles.css -o ./${BUILD_DIR}/output.css --minify
-          else
-            echo "ERROR: styles.css not found in repo root."
-            exit 1
-          fi
-
-          # Copy HTML (rename to index.html for nginx default)
-          if [ -f ./outperform-nyt.html ]; then
-            cp -v ./outperform-nyt.html "${BUILD_DIR}/index.html"
-          else
-            echo "ERROR: outperform-nyt.html not found in repo root."
-            exit 1
-          fi
-
-          # Copy styles.css as requested
-          cp -v ./styles.css "${BUILD_DIR}/styles.css"
-
-          # Copy static files/folders if they exist
-          [ -f favicon.ico ] && cp -v favicon.ico "${BUILD_DIR}/" || true
-          [ -f sun-logo.svg ] && cp -v sun-logo.svg "${BUILD_DIR}/" || true
-          [ -d assets ] && cp -rv assets "${BUILD_DIR}/" || true
-          [ -d images ] && cp -rv images "${BUILD_DIR}/" || true
-          [ -d public ] && cp -rv public/* "${BUILD_DIR}/" || true
-
-          echo "Build output:"
-          ls -la "${BUILD_DIR}"
+          echo "=== Built styles.css size ==="
+          wc -c styles.css
         '''
       }
     }
 
-    stage('Deploy to /var/www (copy)') {
+    // ─────────────────────────────────────────
+    stage('Prepare Deploy Artefacts') {
+    // ─────────────────────────────────────────
       steps {
         sh '''
           set -e
 
-          if [ ! -d "${BUILD_DIR}" ]; then
-            echo "ERROR: Build directory ${BUILD_DIR} not found."
-            exit 1
-          fi
+          rm -rf _deploy && mkdir -p _deploy
 
-          mkdir -p "${SITE_DIR}"
+          # ── HTML → index.html ──
+          cp -v outperform-nyt.html _deploy/index.html
 
-          # Clean old deployment (no rsync as requested)
-          rm -rf "${SITE_DIR:?}/"*
+          # ── Compiled CSS (built in-place above) ──
+          cp -v styles.css _deploy/styles.css
 
-          # Copy new build
-          cp -rv "${BUILD_DIR}/"* "${SITE_DIR}/"
+          # ── Static assets ──
+          [ -f favicon.ico ]  && cp -v favicon.ico  _deploy/ || true
+          [ -f sun-logo.svg ] && cp -v sun-logo.svg _deploy/ || true
 
-          chmod -R 755 "${SITE_DIR}"
-
-          echo "Deployed files:"
-          ls -la "${SITE_DIR}"
+          echo "=== Deploy artefacts ==="
+          ls -lh _deploy/
         '''
       }
     }
+
+    // ─────────────────────────────────────────
+    stage('Deploy via SSH') {
+    // ─────────────────────────────────────────
+      steps {
+        sshPublisher(
+          publishers: [
+            sshPublisherDesc(
+              configName: 'outperform-server',   // ← must match the name you set in
+                                                  //   Manage Jenkins → System → SSH Servers
+              transfers: [
+                sshTransfer(
+                  // Upload everything inside _deploy/ to SITE_DIR on the server
+                  sourceFiles:     '_deploy/**/*',
+                  removePrefix:    '_deploy',
+                  remoteDirectory: '',
+
+                  // After upload: fix permissions so nginx can read the files
+                  execCommand: '''
+                    chmod -R 755 /var/www/outperformit && \
+                    chmod 644 /var/www/outperformit/index.html \
+                              /var/www/outperformit/styles.css  || true
+                  '''
+                )
+              ],
+              failOnError: true,
+              verbose: true
+            )
+          ]
+        )
+      }
+    }
+
   }
 
+  // ─────────────────────────────────────────
   post {
+  // ─────────────────────────────────────────
+    success {
+      echo "✅ Deployed successfully — https://www.outperformit.in"
+    }
+    failure {
+      echo "❌ Build or deploy failed. Check the stage logs above."
+    }
     always {
-      sh '''
-        echo "Cleanup: removing temporary Node + artifacts..."
-        rm -rf "${NODE_DIR}" node_modules "${BUILD_DIR}" || true
-      '''
+      sh 'rm -rf _deploy node_modules "${NODE_DIR}" || true'
       cleanWs()
     }
   }
